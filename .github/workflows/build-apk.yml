@@ -1,0 +1,59 @@
+name: Bina APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Salin fail sistem ke dalam aplikasi
+        run: |
+          mkdir -p android/app/src/main/assets
+          cp -r index.html manifest.json assets icons android/app/src/main/assets/
+
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.7' }
+
+      - name: Sediakan kunci tandatangan (jika ada dalam Secrets)
+        env:
+          KS: ${{ secrets.APK_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KS" ]; then echo "$KS" | base64 -d > android/app/yuran.keystore; echo "Guna kunci tetap"; else echo "::warning::Tiada APK_KEYSTORE_BASE64 — guna kunci debug sementara"; fi
+
+      - name: Bina APK
+        env:
+          APK_KEY_PASSWORD: ${{ secrets.APK_KEY_PASSWORD }}
+        run: |
+          cd android && gradle assembleRelease --no-daemon
+          cp app/build/outputs/apk/release/app-release.apk ../Yuran-Nilavara.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Yuran-Nilavara-apk
+          path: Yuran-Nilavara.apk
+
+      # Hanya branch main: terbitkan sebagai pautan muat turun tetap (Releases)
+      - name: Terbitkan pautan muat turun
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete apk-terkini --yes --cleanup-tag || true
+          gh release create apk-terkini Yuran-Nilavara.apk \
+            --target "${{ github.sha }}" \
+            --title "Yuran Nilavara (APK terkini) — versi 1.0.${{ github.run_number }}" \
+            --notes "Muat turun **Yuran-Nilavara.apk** di bawah dan buka di telefon Android untuk pasang. Versi baharu boleh dipasang terus atas versi lama — data kekal."

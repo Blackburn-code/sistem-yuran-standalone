@@ -1,0 +1,16 @@
+{
+  "name": "Sistem Yuran Nilavara",
+  "short_name": "Yuran Nilavara",
+  "description": "Kutipan yuran, resit A4/80mm, tunggakan dan laporan — berfungsi tanpa internet.",
+  "lang": "ms",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f3fb",
+  "theme_color": "#16142b",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

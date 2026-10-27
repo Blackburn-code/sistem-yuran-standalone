@@ -1,0 +1,41 @@
+plugins { id 'com.android.application' }
+
+// Nombor versi naik setiap kali GitHub membina APK, supaya APK baharu boleh dipasang terus atas yang lama
+def runNo = (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+
+android {
+    namespace 'my.nilavara.yuran'
+    compileSdk 34
+    defaultConfig {
+        applicationId "my.nilavara.yuran"
+        minSdk 24
+        targetSdk 34
+        versionCode runNo
+        versionName "1.0." + runNo
+    }
+    // Kunci tetap dari GitHub Secrets (supaya APK baharu boleh dipasang atas yang lama tanpa hilang data).
+    // Jika tiada, APK ditandatangani dengan kunci debug sementara.
+    def ks = file('yuran.keystore')
+    signingConfigs {
+        tetap {
+            if (ks.exists()) {
+                storeFile ks
+                storePassword System.getenv('APK_KEY_PASSWORD')
+                keyAlias System.getenv('APK_KEY_ALIAS') ?: 'yuran'
+                keyPassword System.getenv('APK_KEY_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release { minifyEnabled false; signingConfig ks.exists() ? signingConfigs.tetap : signingConfigs.debug }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.11.0'
+    implementation 'androidx.core:core:1.13.1'
+}
