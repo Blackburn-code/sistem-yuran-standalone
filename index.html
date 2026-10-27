@@ -4,11 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Nilavara Yuran</title>
-<link rel="icon" href="assets/logo-mark.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#16142b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Yuran Nilavara">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-32.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <style>
+@font-face{font-family:'Playfair Display';font-style:normal;font-weight:500;font-display:swap;src:url(assets/fonts/playfair-display-latin-500-normal.woff2) format('woff2')}
+@font-face{font-family:'Playfair Display';font-style:normal;font-weight:600;font-display:swap;src:url(assets/fonts/playfair-display-latin-600-normal.woff2) format('woff2')}
+@font-face{font-family:'Playfair Display';font-style:italic;font-weight:500;font-display:swap;src:url(assets/fonts/playfair-display-latin-500-italic.woff2) format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:400;font-display:swap;src:url(assets/fonts/inter-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:500;font-display:swap;src:url(assets/fonts/inter-latin-500-normal.woff2) format('woff2')}
+@font-face{font-family:'Inter';font-style:normal;font-weight:600;font-display:swap;src:url(assets/fonts/inter-latin-600-normal.woff2) format('woff2')}
 :root{
   --bg:#f6f3fb; --bg2:#fbf7f3;
   --card:rgba(255,255,255,.72); --card-solid:#fff; --line:rgba(22,20,43,.08); --glass-edge:rgba(255,255,255,.95);
@@ -245,6 +253,10 @@ const RM = n => `${db.settings.currency} ${money(n)}`;
 const fmtDate = s => { if (!s) return '—'; const [y, m, d] = s.slice(0, 10).split('-'); return `${+d} ${MON[+m - 1]} ${y}`; };
 const periodLabel = p => p === 'sekali' ? 'Sekali bayar' : p === 'lain' ? '—' : /^\d{4}$/.test(p) ? `Tahun ${p}` : /^\d{4}-\d{2}$/.test(p) ? `${MONF[+p.slice(5) - 1]} ${p.slice(0, 4)}` : p;
 const FREQ = {bulanan: 'Bulanan', tahunan: 'Tahunan', sekali: 'Sekali'};
+
+// Dalam APK Android, fungsi asli disediakan melalui objek window.Android
+const IS_APP = !!(window.Android && window.Android.saveFile);
+const toB64 = str => { const b = new TextEncoder().encode(str); let r = ''; for (let i = 0; i < b.length; i += 0x8000) r += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(r); };
 
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), 2600); }
 
@@ -646,6 +658,7 @@ function exportXLSX() {
   const wb = XLSX.utils.book_new();
   const add = (data, name, cols) => { const ws = XLSX.utils.json_to_sheet(data.length ? data : [{'-': 'Tiada data'}]); ws['!cols'] = cols.map(w => ({wch: w})); XLSX.utils.book_append_sheet(wb, ws, name); };
   add(sum, 'Ringkasan', [34, 24]); add(pay, 'Bayaran', [18, 12, 8, 28, 14, 16, 14, 12, 20]); add(det, 'Butiran Item', [18, 12, 28, 22, 18, 12]); add(owe, 'Tunggakan', [8, 28, 14, 14, 22, 18, 12]);
+  if (IS_APP) { window.Android.saveFile(fname + '.xlsx', XLSX.write(wb, {bookType: 'xlsx', type: 'base64'}), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); return; }
   XLSX.writeFile(wb, fname + '.xlsx'); toast('Fail Excel dimuat turun.');
 }
 
@@ -725,23 +738,23 @@ function receiptHTML(p, size) {
     <div class="sign"><div class="ln"></div>Tandatangan / Cop</div></div>
     <div class="note">${esc(s.footer)} · Resit ini dijana oleh komputer.</div></div>`;
 }
-async function doPrint(html, pageCss) {
+async function doPrint(html, pageCss, title = 'Cetakan', paper = 'a4') {
   $('#print-area').innerHTML = html; $('#page-style').textContent = pageCss;
   await Promise.all($$('#print-area img').map(img => img.complete ? 0 : new Promise(r => { img.onload = img.onerror = r; })));
-  setTimeout(() => window.print(), 60);
+  setTimeout(() => { if (IS_APP && window.Android.print) window.Android.print(title, paper); else window.print(); }, 60);
 }
 function printReceipt(id, size) {
   const p = db.payments.find(x => x.id === id); if (!p) return;
-  doPrint(receiptHTML(p, size), size === '80' ? '@page{size:80mm auto;margin:3mm}' : '@page{size:A4;margin:14mm}');
+  doPrint(receiptHTML(p, size), size === '80' ? '@page{size:80mm auto;margin:3mm}' : '@page{size:A4;margin:14mm}', 'Resit ' + p.no, size === '80' ? '80' : 'a4');
 }
 function printReport() {
   const r = reportData(), s = db.settings;
   doPrint(`<div class="rc a4 rpt"><div class="hd"><div class="org"><img src="${esc(logoSrc())}" alt=""><div><h2>${esc(s.org)}</h2><div class="tag">Laporan Kutipan Yuran</div><div class="ad">${fmtDate(r.from)} – ${fmtDate(r.to)}</div></div></div><div class="meta"><div class="lab">Jumlah</div><div class="no">${RM(r.total)}</div><div class="dt">${r.rows.length} resit</div></div></div>
   <table style="margin-top:16px"><thead><tr><th>Tarikh</th><th>No. resit</th><th>${esc(L())}</th><th>Kaedah</th><th class="r">Jumlah</th></tr></thead><tbody>${r.rows.map(p => `<tr><td>${fmtDate(p.date)}</td><td>${esc(p.no)}</td><td>${esc(member(p.memberId)?.name || '')}</td><td>${esc(p.method)}</td><td class="r">${money(p.total)}</td></tr>`).join('')}<tr class="tot"><td colspan="4">JUMLAH</td><td class="r">${money(r.total)}</td></tr></tbody></table>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:20px"><table><thead><tr><th>Jenis yuran</th><th class="r">RM</th></tr></thead><tbody>${Object.entries(r.byFee).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="r">${money(v)}</td></tr>`).join('')}</tbody></table><table><thead><tr><th>Kaedah</th><th class="r">RM</th></tr></thead><tbody>${Object.entries(r.byMethod).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="r">${money(v)}</td></tr>`).join('')}</tbody></table></div>
-  <div class="note">Dicetak pada ${fmtDate(today())}</div></div>`, '@page{size:A4;margin:12mm}');
+  <div class="note">Dicetak pada ${fmtDate(today())}</div></div>`, '@page{size:A4;margin:12mm}', 'Laporan Yuran', 'a4');
 }
-function download(content, name, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], {type})); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+function download(content, name, type) { if (IS_APP) { window.Android.saveFile(name, toB64(content), type); return; } const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], {type})); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
 function resizeImage(file) {
   return new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => { const img = new Image(); img.onload = () => { const S = 320, c = document.createElement('canvas'); const k = Math.min(1, S / Math.max(img.width, img.height)); c.width = img.width * k; c.height = img.height * k; c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); res(c.toDataURL('image/png')); }; img.onerror = rej; img.src = fr.result; }; fr.onerror = rej; fr.readAsDataURL(file); });
 }
@@ -849,6 +862,15 @@ document.addEventListener('submit', e => {
   }
   if (f.id === 'verifyForm') { $('#vOut').innerHTML = verify($('#vText').value); return; }
 });
+
+// Butang Back Android: tutup modal dahulu, kemudian kembali ke halaman Utama
+window.__back = () => {
+  if ($('#modal').open) { closeModal(); return 1; }
+  if ((location.hash || '#utama') !== '#utama') { location.hash = '#utama'; return 1; }
+  return 0;
+};
+// Pasang sebagai aplikasi (PWA) & guna tanpa internet bila dibuka melalui pautan web
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 
 route();
 </script>
